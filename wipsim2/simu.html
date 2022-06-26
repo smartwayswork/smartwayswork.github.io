@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://code.jquery.com/jquery-1.11.3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.bundle.min.js"></script>
+
+<script src="data.js"></script>
+<script src="simu.js"></script>
+
+<style>
+  body {
+    font-family: Courier;
+    background-color: #C6FFA3;
+  }
+
+  #simuout {
+    float: left;
+    margin-bottom: 2em;
+    font-size: 14px;
+    color: #999;
+    width: 75em;
+    background-color: #F6FAB4;
+    border: 1px solid grey;
+    box-shadow: 2px 2px 2px #888888;
+  }
+  #simuout div {
+    float: left;
+    text-align: right;
+    width: 9em;
+    border-bottom: 1px dotted grey;
+    height: 3em;
+  }
+  #simu .column {
+    float: left;
+    width: 16em;
+    height: 32em;
+    background-color: #EEE;
+    margin: 4px;
+    box-shadow: 2px 2px 2px #888888;
+  }
+  .column.slim {
+    width: 9em !important;
+  }
+  #simu .column .in {
+    float: left;
+    width: 40%;
+    height: 100%;
+  }
+  #simu .column .out {
+    float: left;
+    width: 40%;
+    background-color: #DDD;
+    max-height: 95%;
+    overflow: hidden;
+  }
+  #simu .column .info {
+    width: auto;
+  }
+  #simu .column .info .label {
+    font-weight: bold;
+  }
+  #simu .column .counter {
+    position: relative;
+    vertical-align: bottom;
+    top: 23em;
+    font-size: 18px;
+    color: #666;
+  }
+  #simu .column .wait {
+    position: relative;
+    vertical-align: bottom;
+    top: 23em;
+    left: 1em;
+    font-size: 18px;
+    color: red;
+  }
+  #simu .bar {
+    width: 100%;
+    height: 4em;
+  }
+  #simu .postit {
+    float: left;
+    background-color: #F8F820;
+    font-family: Courier;
+    font-size:13px;
+    width: 3em;
+    height: 3em;
+    border: 1px solid grey;
+    margin: 4px;
+    box-shadow: 4px 4px 4px #888888;
+  }
+  .postit.slim {
+    width: 1.5em !important;
+    height: 1.5em !important;
+  }
+  .out .postit {
+    opacity: 0.6;
+    /*border: 1px solid orange !important;*/
+  }
+  .first {
+    background-color: #c4ff4d !important;
+  }
+  .last {
+    background-color: #ffc266 !important;
+  }
+
+  #graph {
+    float: left;
+    clear: both;
+    width: auto;
+    background-color: #EEE;
+    margin: 4px;
+    box-shadow: 2px 2px 2px #888888;
+  }
+</style>
+
+<script type="text/javascript">
+  simu = null;
+
+  function populateSelectData() {
+    for(set in simuSet) {
+      $('#datasets').append('<option value="' + set + '">' + simuSet[set].desc + '</option>');
+    }
+
+    setSimuData();
+  }
+
+  function setSimuData() {
+    sel = $('#datasets').val();
+    simu = simuSet[sel];
+
+    setupSimulation();
+  }
+
+  function shortDate(dt) {
+    if(dt && dt != "0") {
+      dt = new Date(Date.parse(dt));
+      return dt.getDate() + "." + (parseInt(dt.getMonth()) + 1) + "." + dt.getFullYear();
+    }
+    return "";
+  }
+
+  function dateDiff(dtA, dtB) {
+    dtA = new Date(Date.parse(dtA));
+    dtB = new Date(Date.parse(dtB));
+    if(!(dtB instanceof Date) || isNaN(dtB))
+      dtB = new Date();
+
+    var oneDay = 24*60*60*1000;
+
+    return Math.round(Math.abs((dtB.getTime() - dtA.getTime())/(oneDay)));
+  }
+
+  function toggleView(id) {
+    if($(id).is(":visible"))
+      $(id).hide();
+    else
+      $(id).show();
+  }
+</script>
+</head>
+
+<body>
+  <div id="simu">
+    <div class="bar"><a href="javascript:void(resetSimulation())">Reset</a>
+      <a href="javascript:void(startSimulation())">Start</a>
+      <a href="javascript:void(stopSimulation())">Stop</a> |
+      Data set <select id="datasets" onchange="setSimuData();">...</select> |
+      <!--a href="javascript:void(toggleView('#config'));">Configure</a> |-->
+      <a href="javascript:void(toggleView('#help'));">Help</a> |
+      <span id="count">&nbsp;</span>
+    </div>
+    <div id="config" style="display:none">
+      ...
+    </div>
+    <div id="help" style="display:none;color:#999;font-size:12px;font-style:italic;width:60em;margin-bottom:3em">
+      <strong>Instructions</strong><p>Select a data set, representing a team. The columns show number of team members (ppl), time to deliver a unit in column (lead time/lt) and work-in-progress limit (WIP).</p><p>Start to run a simulation on 200 days. New items (7) are added to backlog every 15 day (configurable). Column darker area represents output waiting to be pulled (can indicate queuing). Column metric shows total tasks completed and red percentage is time lost in waiting (delays, dependencies, meetings, etc). Reset between runs.</p>
+    <p><strong>Space</strong> can be used to pause and unpause simulation during execution</p></div>
+    
+    <p>This is a simple simulation that will help you better appreciate the value of WIP limits ( in action!) - original source from https://github.com/tkjelsrud</p>
+    
+    <!--div id="sets" style="display:none;color:#999;font-size:12px;font-style:italic;width:60em;margin-bottom:3em">
+      <table>
+        <tr><th>#</th><th>Description</th><th>Data</th></tr>
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      </table>
+    </div-->
+    <div style="float:left;width:100%">
+      <div id="simuout">
+        <div>Name</div><div>#Days</div><div>#Tasks</div>
+        <div>#Team</div><div>Util%</div><div>Eff%</div><div>Cost</div>
+      </div>
+    </div>
+    <div id="team"></div>
+    <div class="columns">
+      &nbsp;
+    </div>
+    <div id="graph" style="display:none">
+      <canvas id="graphcanvas" width="1000" height="600"></canvas>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    populateSelectData();
+  </script>
+</body>
+</html>
